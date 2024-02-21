@@ -43,7 +43,7 @@ package fpnew_pkg;
     FP16    = 'd2,
     FP8     = 'd3,
     FP16ALT = 'd4
-    // add new formats here
+  // add new formats here
   } fp_format_e;
 
   // Encodings for supported FP formats
@@ -53,7 +53,7 @@ package fpnew_pkg;
     '{5,  10}, // IEEE binary16 (half)
     '{5,  2},  // custom binary8
     '{8,  7}   // custom binary16alt
-    // add new formats here
+  // add new formats here
   };
 
   typedef logic [0:NUM_FP_FORMATS-1]       fmt_logic_t;    // Logic indexed by FP format (for masks)
@@ -81,7 +81,7 @@ package fpnew_pkg;
     INT16,
     INT32,
     INT64
-    // add new formats here
+  // add new formats here
   } int_format_e;
 
   // Returns the width of an INT format by index
@@ -255,6 +255,16 @@ package fpnew_pkg;
     IntFmtMask:    4'b0110
   };
 
+  // New configuration for 256-bit wide vectors processing FP32 numbers
+  localparam fpu_features_t RV256F_8xFP32 = '{
+    Width:         256,       // 256-bit wide vectors
+    EnableVectors: 1'b1,      // Enable vector operations
+    EnableNanBox:  1'b1,      // Enable NaN-boxing (if required)
+    FpFmtMask:     5'b10000,  // Enable FP32 format only
+    IntFmtMask:    4'b1111    // Enable all integer formats (adjust as needed)
+  };
+
+
 
   // FPU configuraion: implementation
   typedef struct packed {
@@ -266,18 +276,18 @@ package fpnew_pkg;
   localparam fpu_implementation_t DEFAULT_NOREGS = '{
     PipeRegs:   '{default: 0},
     UnitTypes:  '{'{default: PARALLEL}, // ADDMUL
-                  '{default: MERGED},   // DIVSQRT
-                  '{default: PARALLEL}, // NONCOMP
-                  '{default: MERGED}},  // CONV
+      '{default: MERGED},   // DIVSQRT
+      '{default: PARALLEL}, // NONCOMP
+      '{default: MERGED}},  // CONV
     PipeConfig: BEFORE
   };
 
   localparam fpu_implementation_t DEFAULT_SNITCH = '{
     PipeRegs:   '{default: 1},
     UnitTypes:  '{'{default: PARALLEL}, // ADDMUL
-                  '{default: DISABLED}, // DIVSQRT
-                  '{default: PARALLEL}, // NONCOMP
-                  '{default: MERGED}},  // CONV
+      '{default: DISABLED}, // DIVSQRT
+      '{default: PARALLEL}, // NONCOMP
+      '{default: MERGED}},  // CONV
     PipeConfig: BEFORE
   };
 
@@ -398,8 +408,8 @@ package fpnew_pkg;
 
   // Returns a mask of active FP formats that are present in lane lane_no of a multiformat slice
   function automatic fmt_logic_t get_lane_formats(int unsigned width,
-                                                  fmt_logic_t cfg,
-                                                  int unsigned lane_no);
+      fmt_logic_t cfg,
+      int unsigned lane_no);
     automatic fmt_logic_t res;
     for (int unsigned fmt = 0; fmt < NUM_FP_FORMATS; fmt++)
       // Mask active formats with the number of lanes for that format
@@ -409,9 +419,9 @@ package fpnew_pkg;
 
   // Returns a mask of active INT formats that are present in lane lane_no of a multiformat slice
   function automatic ifmt_logic_t get_lane_int_formats(int unsigned width,
-                                                       fmt_logic_t cfg,
-                                                       ifmt_logic_t icfg,
-                                                       int unsigned lane_no);
+      fmt_logic_t cfg,
+      ifmt_logic_t icfg,
+      int unsigned lane_no);
     automatic ifmt_logic_t res;
     automatic fmt_logic_t lanefmts;
     res = '0;
@@ -427,21 +437,21 @@ package fpnew_pkg;
 
   // Returns a mask of active FP formats that are present in lane lane_no of a CONV slice
   function automatic fmt_logic_t get_conv_lane_formats(int unsigned width,
-                                                       fmt_logic_t cfg,
-                                                       int unsigned lane_no);
+      fmt_logic_t cfg,
+      int unsigned lane_no);
     automatic fmt_logic_t res;
     for (int unsigned fmt = 0; fmt < NUM_FP_FORMATS; fmt++)
       // Mask active formats with the number of lanes for that format, CPK at least twice
       res[fmt] = cfg[fmt] && ((width / fp_width(fp_format_e'(fmt)) > lane_no) ||
-                             (CPK_FORMATS[fmt] && (lane_no < 2)));
+        (CPK_FORMATS[fmt] && (lane_no < 2)));
     return res;
   endfunction
 
   // Returns a mask of active INT formats that are present in lane lane_no of a CONV slice
   function automatic ifmt_logic_t get_conv_lane_int_formats(int unsigned width,
-                                                            fmt_logic_t cfg,
-                                                            ifmt_logic_t icfg,
-                                                            int unsigned lane_no);
+      fmt_logic_t cfg,
+      ifmt_logic_t icfg,
+      int unsigned lane_no);
     automatic ifmt_logic_t res;
     automatic fmt_logic_t lanefmts;
     res = '0;
@@ -451,7 +461,7 @@ package fpnew_pkg;
       for (int unsigned fmt = 0; fmt < NUM_FP_FORMATS; fmt++)
         // Mask active int formats with the width of the float formats
         res[ifmt] |= icfg[ifmt] && lanefmts[fmt] &&
-                     (fp_width(fp_format_e'(fmt)) == int_width(int_format_e'(ifmt)));
+          (fp_width(fp_format_e'(fmt)) == int_width(int_format_e'(ifmt)));
     return res;
   endfunction
 
@@ -460,13 +470,13 @@ package fpnew_pkg;
     for (int unsigned i = 0; i < NUM_FP_FORMATS; i++)
       if (cfg[i] && types[i] == MERGED)
         return 1'b1;
-      return 1'b0;
+    return 1'b0;
   endfunction
 
   // Return whether the given format is the first active one set as MERGED
   function automatic logic is_first_enabled_multi(fp_format_e fmt,
-                                                  fmt_unit_types_t types,
-                                                  fmt_logic_t cfg);
+      fmt_unit_types_t types,
+      fmt_logic_t cfg);
     for (int unsigned i = 0; i < NUM_FP_FORMATS; i++) begin
       if (cfg[i] && types[i] == MERGED) return (fp_format_e'(i) == fmt);
     end
@@ -478,13 +488,13 @@ package fpnew_pkg;
     for (int unsigned i = 0; i < NUM_FP_FORMATS; i++)
       if (cfg[i] && types[i] == MERGED)
         return fp_format_e'(i);
-      return fp_format_e'(0);
+    return fp_format_e'(0);
   endfunction
 
   // Returns the largest number of regs that is active and is set as MERGED
   function automatic int unsigned get_num_regs_multi(fmt_unsigned_t regs,
-                                                     fmt_unit_types_t types,
-                                                     fmt_logic_t cfg);
+      fmt_unit_types_t types,
+      fmt_logic_t cfg);
     automatic int unsigned res = 0;
     for (int unsigned i = 0; i < NUM_FP_FORMATS; i++) begin
       if (cfg[i] && types[i] == MERGED) res = maximum(res, regs[i]);
